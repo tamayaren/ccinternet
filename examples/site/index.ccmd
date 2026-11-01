@@ -1,0 +1,29 @@
+--
+title: Example Site
+location: /
+--
+# The topbar stays at the top while the page scrolls.
+<topbar color="pink" layout="horizontal" text-color="black">
+[Home](/) [About](/about) [Contact](/contact)
+</topbar>
+
+<img src="/img/logo.nft" alignment="center">
+<br/>
+<p alignment="center" text-color="white">
+Welcome to the {yellow}example site{/}!
+This page is written in .ccmd.
+</p>
+<br/>
+
+<table header-color="gray" text-color="white">
+| Feature | Supported |
+|---|:---:|
+| Paragraphs | {lime}yes{/} |
+| Tables | {lime}yes{/} |
+| Images (.nft, .bimg) | {lime}yes{/} |
+| Forms | {lime}yes{/} |
+| Headings | {red}no{/} |
+</table>
+<br/>
+Text can also sit outside a paragraph.
+[Read more about us](/about)

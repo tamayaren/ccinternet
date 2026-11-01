@@ -1,0 +1,17 @@
+--
+title: About - Example Site
+location: /about
+--
+<topbar color="pink" layout="horizontal" text-color="black">
+[Home](/) [About](/about) [Contact](/contact)
+</topbar>
+
+<p>
+This site lives on one floppy disk inside an internet core.
+Every page has front matter with a title and a location.
+The file name does not matter; the location is the address.
+</p>
+<br/>
+<p alignment="right" text-color="lightGray">
+- the example team
+</p>

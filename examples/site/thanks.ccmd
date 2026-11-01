@@ -1,0 +1,9 @@
+--
+title: Thanks - Example Site
+location: /thanks
+--
+<br/>
+<p alignment="center">
+{lime}Thanks for your message!{/}
+[Back home](/)
+</p>

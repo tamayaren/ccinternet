@@ -1,0 +1,15 @@
+--
+title: Contact - Example Site
+location: /contact
+--
+<topbar color="pink" layout="horizontal" text-color="black">
+[Home](/) [About](/about) [Contact](/contact)
+</topbar>
+
+Leave us a message. The owner reads it at domain://.
+<br/>
+<form action="/thanks" method="POST">
+<input name="name" label="Name:   " width="20"/>
+<input name="message" label="Message:" width="30"/>
+<button text="Send" color="green" text-color="white"/>
+</form>
