@@ -1,7 +1,7 @@
 -- The ccinternet browser for CraftOS. Runs as a program (browser.lua) or inside the core's admin screen.
 --
 -- Browser.Run(Options)
---   Options.Url        first page (default: the home page setting, domain://)
+--   Options.Url        first page (default: the home page setting, ccmd://cc.net/)
 --   Options.Transport  object with Send(Method, Url, Headers, Body, Options) -> response | nil, error
 --                      (default: rednet to the core named by the "ccinternet.host" setting)
 --   Options.Embedded   true when started from another program; Quit returns instead of clearing the screen
@@ -17,10 +17,11 @@ Browser.MaxHistory = 30
 Browser.CachedPages = 10
 Browser.MaxRedirects = 5
 Browser.MaxUpload = 125000
+Browser.DefaultHome = "ccmd://cc.net/" -- cc.net, the search engine; cores without it redirect to domain://
 
 if (settings and settings.define) then
 	settings.define("ccinternet.host", { description = "Hostname of the ccinternet core the browser connects to", default = Protocol.DefaultHost, type = "string" })
-	settings.define("ccinternet.home", { description = "Home page of the ccinternet browser", default = "domain://", type = "string" })
+	settings.define("ccinternet.home", { description = "Home page of the ccinternet browser", default = Browser.DefaultHome, type = "string" })
 end
 
 local function Setting(Name, Default)
@@ -537,7 +538,7 @@ function Browser.Run(Options)
 
 	local function Menu()
 		local Items = {
-			{ "Home", function() Navigate(Setting("ccinternet.home", "domain://")) end },
+			{ "Home", function() Navigate(Setting("ccinternet.home", Browser.DefaultHome)) end },
 			{ "Set as home", function()
 				if (Current.Url) then SaveSetting("ccinternet.home", Current.Url) SetStatus("Home set", "5") end
 			end },
@@ -614,7 +615,7 @@ function Browser.Run(Options)
 	if (not Colour) then
 		Current.Status = "Use an Advanced Computer for colour"
 	end
-	Navigate(Options.Url or Setting("ccinternet.home", "domain://"))
+	Navigate(Options.Url or Setting("ccinternet.home", Browser.DefaultHome))
 
 	while (Running) do
 		local Event, A, B, C = os.pullEventRaw()

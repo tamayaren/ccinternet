@@ -16,7 +16,7 @@ local ServerFiles = {
 	"lib/sha256.lua",
 	"server/main.lua", "server/admin.lua", "server/ui.lua", "server/config.lua", "server/auth.lua",
 	"server/log.lua", "server/storage.lua", "server/transfer.lua", "server/router.lua",
-	"server/pages.lua", "server/domains.lua", "server/network.lua",
+	"server/pages.lua", "server/domains.lua", "server/network.lua", "server/search.lua",
 	"examples/site/index.ccmd", "examples/site/about.ccmd", "examples/site/contact.ccmd",
 	"examples/site/thanks.ccmd", "examples/site/img/logo.nft"
 }

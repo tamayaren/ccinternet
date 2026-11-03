@@ -41,6 +41,7 @@ Every page starts with a block between two `--` lines (`---` also works).
 | `background` | no | Page background colour (default `black`). |
 | `text-color` | no | Default text colour (default `white`). |
 | `link-color` | no | Link colour (default `lightBlue`). |
+| `vertical-alignment` | no | `top` (default), `center` or `bottom`: where a page shorter than the screen sits. |
 
 A page with `location: /404` is shown when a visitor asks for a page that does not exist.
 
@@ -86,6 +87,19 @@ A bar that stays visible while the page scrolls. Each line inside is one item (u
 | `text-color` | text and link colour | `white` |
 
 Only one topbar is used per page (the last one).
+
+### `<footer>` … `</footer>`
+
+A bar fixed to the bottom of the page that does not scroll. Each line inside is one item; items
+go left to right with two spaces between them and wrap onto more rows if needed.
+
+| Attribute | Values | Default |
+|---|---|---|
+| `alignment` | `left`, `center`, `right` | `left` |
+| `color` | background colour | `gray` |
+| `text-color` | text and link colour | `white` |
+
+Only one footer is used per page (the last one).
 
 ### `<p>` … `</p>`
 
@@ -147,6 +161,7 @@ owner reads them under **Forms** at `domain://`) and then shows the page at `act
 | `value` | starting value |
 | `placeholder` | grey hint while empty |
 | `width` | field width in characters (default 20) |
+| `alignment` | `left`, `center`, `right` (the label and field together) |
 | `color`, `text-color` | field colours |
 
 A `file` input lets the visitor pick a file or folder on their own computer. It is sent as a
@@ -160,7 +175,16 @@ table of relative path → contents.
 | `href` | makes the button a link instead of a submit button |
 | `name`, `value` | sent with the form when this button is pressed |
 | `alignment` | `left`, `center`, `right` |
+| `inline` | put the button on the same row as the button right before it |
 | `color`, `text-color` | colours (default blue and white) |
+
+Buttons sharing a row are two spaces apart and aligned by the first button's `alignment`. When
+they do not fit, they wrap onto the next row.
+
+```
+<button text="Search" alignment="center"/>
+<button text="I'm Feeling Blocky" inline/>
+```
 
 Inside a form, a button without `href` submits the form.
 

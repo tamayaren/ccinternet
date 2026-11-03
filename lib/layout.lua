@@ -281,34 +281,65 @@ function Builder:Input(Block)
 	local FieldFg = IsPlaceholder and "7" or Block.TextColor
 	local Canvas = self:Row()
 	local Y = #self.Rows + 1
-	PlaceCells(Canvas, self.Regions, TextCells(Label, self.Fg, self.Bg), 1, Y)
+	local X = AlignOffset(Block.Align, #Label + FieldWidth, self.Width) + 1
+	PlaceCells(Canvas, self.Regions, TextCells(Label, self.Fg, self.Bg), X, Y)
 	local Field = TextCells(Shown .. string.rep(" ", FieldWidth - #Shown), FieldFg, FieldBg)
-	PlaceCells(Canvas, self.Regions, Field, #Label + 1, Y)
-	self.Regions[#self.Regions + 1] = { Kind = "input", Input = Block, Y = Y, X1 = #Label + 1, X2 = #Label + FieldWidth }
+	PlaceCells(Canvas, self.Regions, Field, X + #Label, Y)
+	self.Regions[#self.Regions + 1] = { Kind = "input", Input = Block, Y = Y, X1 = X + #Label, X2 = X + #Label + FieldWidth - 1 }
 	self:Push(Canvas)
 end
 
-function Builder:Button(Block)
-	local Text = " " .. Block.Text .. " "
-	Text = Text:sub(1, self.Width)
-	local Canvas = self:Row()
-	local X = AlignOffset(Block.Align, #Text, self.Width) + 1
-	local Y = #self.Rows + 1
-	PlaceCells(Canvas, self.Regions, TextCells(Text, Block.TextColor, Block.Color), X, Y)
-	self.Regions[#self.Regions + 1] = { Kind = "button", Button = Block, Href = Block.Href, Y = Y, X1 = X, X2 = X + #Text - 1 }
-	self:Push(Canvas)
+Layout.ButtonGap = 2 -- spaces between buttons that share a row
+
+-- Lays out a button and the inline buttons right after it. They share rows (wrapping when they do
+-- not fit) and every row is aligned like the first button.
+function Builder:Buttons(Group)
+	local Line, Used = {}, 0
+	local function Emit()
+		if (#Line == 0) then return end
+		local Canvas = self:Row()
+		local Y = #self.Rows + 1
+		local X = AlignOffset(Group[1].Align, Used, self.Width) + 1
+		for _, Item in ipairs(Line) do
+			PlaceCells(Canvas, self.Regions, TextCells(Item.Text, Item.Block.TextColor, Item.Block.Color), X, Y)
+			self.Regions[#self.Regions + 1] = { Kind = "button", Button = Item.Block, Href = Item.Block.Href, Y = Y, X1 = X, X2 = X + #Item.Text - 1 }
+			X = X + #Item.Text + Layout.ButtonGap
+		end
+		self:Push(Canvas)
+		Line, Used = {}, 0
+	end
+	for _, Block in ipairs(Group) do
+		local Text = (" " .. Block.Text .. " "):sub(1, self.Width)
+		local Needed = #Line == 0 and #Text or (Used + Layout.ButtonGap + #Text)
+		if (#Line > 0 and Needed > self.Width) then
+			Emit()
+			Needed = #Text
+		end
+		Line[#Line + 1] = { Block = Block, Text = Text }
+		Used = Needed
+	end
+	Emit()
 end
 
 function Builder:Blocks(Blocks)
-	for _, Block in ipairs(Blocks) do
+	local Index = 1
+	while (Blocks[Index]) do
+		local Block = Blocks[Index]
 		if (Block.Type == "text") then self:Text(Block)
 		elseif (Block.Type == "break") then self:Blank()
 		elseif (Block.Type == "table") then self:Table(Block)
 		elseif (Block.Type == "image") then self:Image(Block)
 		elseif (Block.Type == "input") then self:Input(Block)
-		elseif (Block.Type == "button") then self:Button(Block)
+		elseif (Block.Type == "button") then
+			local Group = { Block }
+			while (Blocks[Index + 1] and Blocks[Index + 1].Type == "button" and Blocks[Index + 1].Inline) do
+				Index = Index + 1
+				Group[#Group + 1] = Blocks[Index]
+			end
+			self:Buttons(Group)
 		elseif (Block.Type == "form") then self:Blocks(Block.Blocks)
 		end
+		Index = Index + 1
 	end
 end
 
@@ -353,20 +384,70 @@ local function BuildSidebar(Bar, Width, Height)
 	return { Side = "left", Size = Size, Rows = Rows, Regions = Regions }
 end
 
+-- A bar fixed to the bottom of the page area. Items go left to right like the topbar, and each
+-- row is aligned by the footer's alignment.
+local function BuildFooter(Bar, Width, Height)
+	local Lines = {}
+	local Line, Used = {}, 0
+	local MaxRows = math.max(1, math.floor(Height / 3))
+	for _, Spans in ipairs(Bar.Items) do
+		local Cells = SpanCells(Spans, Bar.TextColor, Bar.Color, Bar.TextColor)
+		local Needed = #Line == 0 and #Cells or (Used + 2 + #Cells)
+		if (#Line > 0 and Needed + 2 > Width) then
+			if (#Lines + 1 >= MaxRows) then break end
+			Lines[#Lines + 1] = { Items = Line, Used = Used }
+			Line, Needed = {}, #Cells
+		end
+		Line[#Line + 1] = Cells
+		Used = Needed
+	end
+	if (#Line > 0 or #Lines == 0) then Lines[#Lines + 1] = { Items = Line, Used = Used } end
+	local Rows, Regions = {}, {}
+	for Y, Info in ipairs(Lines) do
+		local Canvas = NewCanvas(Width, Bar.TextColor, Bar.Color)
+		local X = Bar.Align == "left" and 2 or (AlignOffset(Bar.Align, Info.Used, Width - 2) + 2)
+		for _, Cells in ipairs(Info.Items) do
+			PlaceCells(Canvas, Regions, Slice(Cells, 1, math.min(#Cells, Width - X)), X, Y)
+			X = X + #Cells + 2
+		end
+		Rows[Y] = Finish(Canvas)
+	end
+	return { Side = "bottom", Size = #Rows, Rows = Rows, Regions = Regions }
+end
+
+-- Moves content rows down so a short page sits in the middle or at the bottom of its area.
+local function AlignVertically(Build, Align, Height)
+	local Free = Height - #Build.Rows
+	if (Free <= 0 or (Align ~= "center" and Align ~= "bottom")) then return end
+	local Shift = Align == "center" and math.floor(Free / 2) or Free
+	if (Shift <= 0) then return end
+	local Rows = {}
+	for _ = 1, Shift do Rows[#Rows + 1] = Finish(NewCanvas(Build.Width, Build.Fg, Build.Bg)) end
+	for _, Row in ipairs(Build.Rows) do Rows[#Rows + 1] = Row end
+	Build.Rows = Rows
+	for _, Region in ipairs(Build.Regions) do Region.Y = Region.Y + Shift end
+end
+
 -- Builds a page for an area Width x Height.
 -- Options: Images = function(Src) -> image | false (failed) | nil (not loaded), State = { [InputId] = value }, Focus = InputId.
 function Layout.Build(Doc, Width, Height, Options)
 	Options = Options or {}
 	local Page = { Doc = Doc, Width = Width, Height = Height, ViewX = 1, ViewY = 1, ViewW = Width, ViewH = Height }
+	if (Doc.Footer) then
+		Page.Footer = BuildFooter(Doc.Footer, Width, Height)
+		Page.ViewH = math.max(1, Height - Page.Footer.Size)
+		Page.FooterY = Page.ViewH + 1
+	end
+	local BarHeight = Page.ViewH
 	if (Doc.Topbar) then
 		if (Doc.Topbar.Layout == "vertical") then
-			Page.Bar = BuildSidebar(Doc.Topbar, Width, Height)
+			Page.Bar = BuildSidebar(Doc.Topbar, Width, BarHeight)
 			Page.ViewX = Page.Bar.Size + 1
 			Page.ViewW = Width - Page.Bar.Size
 		else
-			Page.Bar = BuildTopbar(Doc.Topbar, Width, Height)
+			Page.Bar = BuildTopbar(Doc.Topbar, Width, BarHeight)
 			Page.ViewY = Page.Bar.Size + 1
-			Page.ViewH = Height - Page.Bar.Size
+			Page.ViewH = BarHeight - Page.Bar.Size
 		end
 	end
 	local Build = setmetatable({
@@ -381,6 +462,7 @@ function Layout.Build(Doc, Width, Height, Options)
 		Regions = {}
 	}, Builder)
 	Build:Blocks(Doc.Blocks)
+	AlignVertically(Build, Doc.VerticalAlign, Page.ViewH)
 	Page.Rows = Build.Rows
 	Page.Regions = Build.Regions
 	Page.Background = Build.Bg
@@ -403,6 +485,12 @@ function Layout.Draw(Page, Target, Scroll)
 			Target.blit(Row[1], Row[2], Row[3])
 		end
 	end
+	if (Page.Footer) then
+		for Index, Row in ipairs(Page.Footer.Rows) do
+			Target.setCursorPos(1, Page.FooterY + Index - 1)
+			Target.blit(Row[1], Row[2], Row[3])
+		end
+	end
 end
 
 -- Returns the region under page-area coordinates X, Y.
@@ -411,6 +499,12 @@ function Layout.Hit(Page, X, Y, Scroll)
 		for _, Region in ipairs(Page.Bar.Regions) do
 			if (Region.Y == Y and X >= Region.X1 and X <= Region.X2) then return Region end
 		end
+	end
+	if (Page.Footer and Y >= Page.FooterY) then
+		for _, Region in ipairs(Page.Footer.Regions) do
+			if (Page.FooterY + Region.Y - 1 == Y and X >= Region.X1 and X <= Region.X2) then return Region end
+		end
+		return nil
 	end
 	if (X < Page.ViewX or Y < Page.ViewY or Y >= Page.ViewY + Page.ViewH) then return nil end
 	local CX = X - Page.ViewX + 1

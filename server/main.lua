@@ -25,6 +25,7 @@ Config.Init(DataDir)
 Log.Init(DataDir)
 Admin.Init({ Shell = shell })
 Storage.TransferSide = Config.Values.TransferSide or "left"
+Storage.SearchSide = Config.Values.SearchSide or "right"
 Storage.Scan()
 
 -- Ctrl+T must not stop the server or skip the lock screen.

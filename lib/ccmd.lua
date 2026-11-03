@@ -23,13 +23,15 @@ Ccmd.Defaults = {
 	InputTextColor = "f",
 	ButtonColor = "b",
 	ButtonTextColor = "0",
+	FooterColor = "7",
+	FooterTextColor = "0",
 	InputWidth = 20
 }
 
 -- Tags the parser understands. Anything else that looks like a tag stays as text.
-local Containers = { topbar = true, p = true, table = true, button = true }
+local Containers = { topbar = true, footer = true, p = true, table = true, button = true }
 local Voids = { br = true, img = true, input = true }
-local Known = { topbar = true, p = true, table = true, button = true, br = true, img = true, input = true, form = true }
+local Known = { topbar = true, footer = true, p = true, table = true, button = true, br = true, img = true, input = true, form = true }
 
 local InputTypes = { text = true, password = true, file = true, hidden = true }
 
@@ -225,6 +227,14 @@ local function Alignment(Attributes)
 	return Value
 end
 
+-- Front matter vertical-alignment: where content shorter than the screen sits.
+local function VerticalAlignment(Value)
+	Value = (Value or "top"):lower()
+	if (Value == "centre" or Value == "middle") then Value = "center" end
+	if (Value ~= "center" and Value ~= "bottom") then Value = "top" end
+	return Value
+end
+
 local function SplitCells(Line)
 	Line = Trim(Line)
 	local Cells = {}
@@ -344,6 +354,7 @@ function Ccmd.Parse(Source)
 	Doc.Background = Ccmd.Colour(Meta.background) or Ccmd.Defaults.Background
 	Doc.TextColor = Ccmd.Colour(Meta["text-color"]) or Ccmd.Defaults.TextColor
 	Doc.LinkColor = Ccmd.Colour(Meta["link-color"]) or Ccmd.Defaults.LinkColor
+	Doc.VerticalAlign = VerticalAlignment(Meta["vertical-alignment"])
 
 	-- Drop comment lines and turn \# at the start of a line into #.
 	local Body = {}
@@ -414,6 +425,13 @@ function Ccmd.Parse(Source)
 						Layout = Layout == "vertical" and "vertical" or "horizontal",
 						Items = TextLines(Inner, false)
 					}
+				elseif (Name == "footer") then
+					Doc.Footer = {
+						Color = Ccmd.Colour(Attributes.color) or Ccmd.Defaults.FooterColor,
+						TextColor = Ccmd.Colour(Attributes["text-color"]) or Ccmd.Defaults.FooterTextColor,
+						Align = Alignment(Attributes),
+						Items = TextLines(Inner, false)
+					}
 				elseif (Name == "p") then
 					Inner = Inner:gsub("<[bB][rR]%s*/?>", "\n")
 					Target[#Target + 1] = {
@@ -438,6 +456,7 @@ function Ccmd.Parse(Source)
 					Value = Attributes.value,
 					Href = Attributes.href,
 					Align = Alignment(Attributes),
+					Inline = Attributes.inline ~= nil and Attributes.inline:lower() ~= "false",
 					Color = Ccmd.Colour(Attributes.color) or Ccmd.Defaults.ButtonColor,
 					TextColor = Ccmd.Colour(Attributes["text-color"]) or Ccmd.Defaults.ButtonTextColor,
 					Form = CurrentForm and CurrentForm.Index or nil
@@ -462,6 +481,7 @@ function Ccmd.Parse(Source)
 						Label = Attributes.label,
 						Value = Attributes.value,
 						Placeholder = Attributes.placeholder,
+						Align = Alignment(Attributes),
 						Width = math.max(1, math.min(tonumber(Attributes.width) or Ccmd.Defaults.InputWidth, 200)),
 						Color = Ccmd.Colour(Attributes.color) or Ccmd.Defaults.InputColor,
 						TextColor = Ccmd.Colour(Attributes["text-color"]) or Ccmd.Defaults.InputTextColor,
