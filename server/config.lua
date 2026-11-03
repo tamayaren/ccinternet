@@ -5,6 +5,7 @@ local Config = {}
 Config.Defaults = {
 	Hostname = "ccinternet",  -- name browsers look up with rednet.lookup("ccinternet", Hostname)
 	TransferSide = "left",    -- the disk drive used to copy domains to and from floppies
+	SearchSide = "right",     -- the disk drive holding the cc.net disk (optional)
 	AutoLock = 5,             -- minutes of no input before the admin screen locks (0 = never)
 	Registration = true,      -- whether domain:// accepts new domains
 	PublicDirectory = true,   -- whether domain://directory lists every domain

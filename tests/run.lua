@@ -1,7 +1,7 @@
 -- Runs every test file: lua5.2 tests/run.lua (from the repository root).
 package.path = "./?.lua;./tests/?.lua;" .. package.path
 
-local Files = { "test_ccmd", "test_layout", "test_protocol", "test_server", "test_browser", "test_admin" }
+local Files = { "test_ccmd", "test_layout", "test_protocol", "test_server", "test_search", "test_browser", "test_admin" }
 local Only = arg[1]
 local Passed, Failed = 0, 0
 

@@ -4,6 +4,9 @@
 --   /ccinternet.meta   owner data (domain name, password hash, created time, suspended flag)
 --   /site/...          the public files of the website
 --   /forms/...         form submissions sent to the website
+--
+-- The drive on the search side (right of the core by default) is not part of the cluster. Its
+-- floppy is the cc.net disk: it holds /ccinternet.search and the search index (see server/search.lua).
 
 local Ccmd = require("lib.ccmd")
 local Protocol = require("lib.protocol")
@@ -11,20 +14,37 @@ local Protocol = require("lib.protocol")
 local Storage = {}
 
 Storage.MetaFile = "ccinternet.meta"
+Storage.SearchFile = "ccinternet.search"
 Storage.SiteDir = "site"
 Storage.FormsDir = "forms"
 Storage.FileOverhead = 500      -- CC: Tweaked charges at least this much per file and folder
 Storage.DefaultCapacity = 125000
 Storage.MaxUploadFiles = 200
 Storage.MaxPathLength = 128
-Storage.Reserved = { domain = true, localhost = true }
+Storage.Reserved = { domain = true, localhost = true, ["cc.net"] = true }
 
 Storage.TransferSide = "left"
-Storage.Drives = {}   -- every cluster drive, in order
-Storage.Domains = {}  -- domain name -> drive entry
-Storage.Version = 0   -- bumps on every rescan or change, so views can refresh
+Storage.SearchSide = "right"
+Storage.Drives = {}      -- every cluster drive, in order
+Storage.Domains = {}     -- domain name -> drive entry
+Storage.SearchDrive = nil -- the drive on the search side (nil when there is none), see Storage.Scan
+Storage.Version = 0      -- bumps on every rescan or change, so views can refresh
+Storage.Generation = 0   -- bumps on every rescan
 
 local RouteCache = {}
+local SiteVersions = {}  -- domain -> number of times its files changed since the last rescan
+
+-- Drops cached routes of a domain and marks its files as changed.
+local function Forget(Domain)
+	if (not Domain) then return end
+	RouteCache[Domain] = nil
+	SiteVersions[Domain] = (SiteVersions[Domain] or 0) + 1
+end
+
+-- A value that changes whenever the files of a domain may have changed (uploads, deletes, rescans).
+function Storage.SiteStamp(Domain)
+	return Storage.Generation .. ":" .. (SiteVersions[Domain] or 0)
+end
 
 ------------------------------------------------------------------------
 -- Helpers
@@ -127,6 +147,7 @@ Storage.Changed = Changed
 --   "empty"   no disk inserted          "nodata"  a disk without files (music disc)
 --   "blank"   an empty floppy, ready     "domain"  holds a domain
 --   "foreign" a floppy with other files  "duplicate" a second floppy for a domain already loaded
+--   "search"  a cc.net disk
 function Storage.Inspect(Name)
 	local Entry = { Name = Name, State = "empty" }
 	if (not disk.isPresent(Name)) then return Entry end
@@ -147,12 +168,24 @@ function Storage.Inspect(Name)
 		Entry.State = "domain"
 		Entry.Domain = Meta.Domain:lower()
 		Entry.Meta = Meta
+	elseif (fs.exists(fs.combine(Entry.Mount, Storage.SearchFile))) then
+		Entry.State = "search"
 	elseif (#fs.list(Entry.Mount) == 0) then
 		Entry.State = "blank"
 	else
 		Entry.State = "foreign"
 	end
 	return Entry
+end
+
+-- Turns a blank floppy in the search drive into a cc.net disk.
+function Storage.SetupSearch(Entry)
+	local Ok, Problem = WriteFile(fs.combine(Entry.Mount, Storage.SearchFile), textutils.serialise({ Version = 1, Created = os.epoch and os.epoch("utc") or 0 }))
+	if (not Ok) then return false, Problem end
+	pcall(disk.setLabel, Entry.Name, "cc.net")
+	Entry.State = "search"
+	Entry.Label = "cc.net"
+	return true
 end
 
 function Storage.Scan()
@@ -162,21 +195,42 @@ function Storage.Scan()
 	end
 	table.sort(Names, DriveLess)
 	local Drives, Domains = {}, {}
+	local Search = nil
 	for _, Name in ipairs(Names) do
 		local Entry = Storage.Inspect(Name)
-		if (Entry.State == "domain") then
+		-- The search drive serves cc.net. A domain floppy left in it keeps working as part of the
+		-- cluster (so nothing goes offline), but then cc.net has no disk.
+		if (Name == Storage.SearchSide and Entry.State ~= "domain") then
+			if (Entry.State == "blank") then Storage.SetupSearch(Entry) end
+			Search = Entry
+		elseif (Entry.State == "domain") then
 			if (Domains[Entry.Domain]) then
 				Entry.State = "duplicate"
 			else
 				Domains[Entry.Domain] = Entry
 			end
 		end
-		Drives[#Drives + 1] = Entry
+		if (Entry ~= Search) then Drives[#Drives + 1] = Entry end
+	end
+	if (not Search) then
+		-- A domain floppy in the search drive stays in the cluster; remember which one for the admin.
+		for _, Entry in ipairs(Drives) do
+			if (Entry.Name == Storage.SearchSide) then Search = { Name = Entry.Name, State = "domain", Domain = Entry.Domain } end
+		end
 	end
 	Storage.Drives = Drives
 	Storage.Domains = Domains
+	Storage.SearchDrive = Search
+	Storage.Generation = Storage.Generation + 1
 	RouteCache = {}
+	SiteVersions = {}
 	Changed()
+end
+
+-- True when the search drive holds a cc.net disk.
+function Storage.SearchReady()
+	local Entry = Storage.SearchDrive
+	return Entry ~= nil and Entry.State == "search" and Entry.Mount ~= nil and fs.exists(Entry.Mount)
 end
 
 function Storage.Get(Domain)
@@ -268,7 +322,7 @@ function Storage.Create(Domain, Salt, Hash, Options)
 	Entry.Domain = Domain
 	Entry.Label = Domain
 	Storage.Domains[Domain] = Entry
-	RouteCache[Domain] = nil
+	Forget(Domain)
 	Changed()
 	return Entry
 end
@@ -279,7 +333,7 @@ function Storage.Release(Entry)
 	pcall(disk.setLabel, Entry.Name, nil)
 	if (Entry.Domain) then
 		Storage.Domains[Entry.Domain] = nil
-		RouteCache[Entry.Domain] = nil
+		Forget(Entry.Domain)
 	end
 	Entry.State = "blank"
 	Entry.Domain = nil
@@ -365,7 +419,7 @@ function Storage.Routes(Entry)
 end
 
 function Storage.Invalidate(Entry)
-	if (Entry.Domain) then RouteCache[Entry.Domain] = nil end
+	Forget(Entry.Domain)
 	Changed()
 end
 

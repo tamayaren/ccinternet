@@ -97,7 +97,12 @@ Keys are strings or numbers. Nesting is limited to 16 levels.
 | Scheme | Meaning |
 |---|---|
 | `ccmd://host/path?query` | A page or file of a website. `ccmd://` without a host redirects to `domain://`. |
-| `domain://page?query` | The core's built-in pages for registering and managing domains (section 7). |
+| `domain://page?query` | The core's built-in pages for registering and managing domains (section 8). |
+
+`ccmd://cc.net/` is the network's search engine and the default home page. It is an ordinary
+site to a browser, served by the core from the cc.net disk. Cores without that disk answer
+`ccmd://cc.net/` with a redirect to `domain://`. Searches are `GET ccmd://cc.net/search?q=words`
+(`&page=2` for more results, `&blocky=1` to be redirected to the best result).
 
 - Hosts are case-insensitive. Paths are normalised: `.` and `..` are resolved, and a path that
   climbs above `/` is invalid.
@@ -140,6 +145,12 @@ rules so pages look the same everywhere:
   onto more rows if needed (at most half the page height). `layout="vertical"` is a sidebar on
   the left, as wide as the widest item plus 2 (at most a third of the width), one item per row
   starting at row 2. The content area is what remains.
+- **Footer.** Drawn on the bottom rows of the page area and does not scroll. Items go left to
+  right with two spaces between them, aligned by `alignment` with one column of margin on each
+  side, wrapping onto more rows if needed (at most a third of the page height). A vertical
+  sidebar stops above the footer.
+- **Vertical alignment.** When the content is shorter than the content area, `center` moves it
+  down by half the free rows (rounded down) and `bottom` by all of them.
 - **Blocks** stack top to bottom in source order with no automatic spacing. Text wraps at
   spaces and breaks words longer than the width.
 - **Colours.** Defaults: black background, white text, light blue links, gray topbar with white
@@ -150,7 +161,11 @@ rules so pages look the same everywhere:
 - **Images.** Ask for each `src` after the page is shown, then redraw. Use the `Content-Type`
   (or the file extension) to pick the format. Transparent `.nfp` pixels show the page background.
   Show `[alt]` while loading and `[image failed: alt]` on failure.
-- **Inputs** take one row: the label, a space, then the field. Hidden inputs are not drawn.
+- **Inputs** take one row: the label, a space, then the field, aligned together by `alignment`.
+  Hidden inputs are not drawn.
+- **Buttons** take one row each, except that `inline` buttons join the row of the button
+  before them, two spaces apart, wrapping when the row is full. The row is aligned by its
+  first button.
   Password fields show `*`. File fields show the number of chosen files.
 - **Scrolling.** Mouse wheel, arrow keys, Page Up/Down, Home/End. Only the content scrolls.
 
@@ -196,9 +211,11 @@ sign-in is blocked for 60 seconds.
 - [ ] Sends chunked requests and puts chunked responses back together.
 - [ ] Follows redirects; shows error pages from the body.
 - [ ] Resolves relative links against the current page.
-- [ ] Draws the topbar fixed (horizontal and vertical), paragraphs with alignment, tables, inline
-      colours and links.
+- [ ] Draws the topbar fixed (horizontal and vertical) and the footer fixed at the bottom,
+      paragraphs with alignment, vertical alignment, tables, inline colours and links.
 - [ ] Loads `.nft`, `.bimg` and `.nfp` images after the page.
-- [ ] Supports text, password, hidden and file inputs, buttons with `href`, and form `GET`/`POST`.
+- [ ] Supports text, password, hidden and file inputs, aligned inputs, inline buttons, buttons with
+      `href`, and form `GET`/`POST`.
+- [ ] Uses `ccmd://cc.net/` as the default home page.
 - [ ] Shows the page `title`.
 - [ ] Has back, forward, reload and an address bar.

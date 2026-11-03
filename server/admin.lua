@@ -9,6 +9,7 @@ local Transfer = require("server.transfer")
 local Network = require("server.network")
 local Router = require("server.router")
 local Log = require("server.log")
+local Search = require("server.search")
 
 local Admin = {}
 
@@ -32,8 +33,9 @@ local Tabs = {
 	{ Id = "settings", Label = "Settings" }
 }
 
-local StateColours = { domain = "5", blank = "0", empty = "7", nodata = "7", foreign = "1", duplicate = "e" }
-local StateNames = { domain = "domain", blank = "blank", empty = "no disk", nodata = "no data", foreign = "other files", duplicate = "duplicate" }
+local StateColours = { domain = "5", blank = "0", empty = "7", nodata = "7", foreign = "1", duplicate = "e", search = "3" }
+local StateNames = { domain = "domain", blank = "blank", empty = "no disk", nodata = "no data", foreign = "other files", duplicate = "duplicate", search = "cc.net disk" }
+local Sides = { "left", "right", "top", "bottom", "front", "back" }
 
 function Admin.Init(Options)
 	Shell = Options and Options.Shell
@@ -267,6 +269,8 @@ local function DrivesView(W, H)
 				end
 			elseif (Entry.State == "blank") then
 				UI.Alert(Entry.Name, "This blank floppy is ready for the next domain registered at domain://.")
+			elseif (Entry.State == "search") then
+				UI.Alert(Entry.Name, "This is a cc.net disk. Move it to the disk drive on the " .. Storage.SearchSide .. " of the core.")
 			else
 				UI.Alert(Entry.Name, "Insert a blank floppy disk into this drive so it can hold a domain.")
 			end
@@ -459,6 +463,48 @@ local function Rename()
 	if (not Ok) then UI.Alert("Rename", "Saved, but the server is offline: " .. tostring(Problem), "1") end
 end
 
+-- Describes the cc.net drive for the settings tab.
+local function SearchStatus()
+	local Side = Storage.SearchSide
+	local Entry = Storage.SearchDrive
+	if (Side == Storage.TransferSide) then return Side .. ": in use" end
+	if (not Entry) then return Side .. ": no drive" end
+	if (Entry.State == "search") then
+		Search.Refresh()
+		-- A trailing * means the index did not fit on the floppy and only lives in memory.
+		return Side .. ": " .. Search.PageCount() .. " pages" .. (Search.SaveProblem and "*" or "")
+	end
+	if (Entry.State == "domain") then return Side .. ": " .. tostring(Entry.Domain) end
+	if (Entry.State == "foreign") then return Side .. ": other files" end
+	return Side .. ": no floppy"
+end
+
+local function PickSide(Title, Other)
+	local Choices = {}
+	for _, Side in ipairs(Sides) do
+		if (Side ~= Other) then Choices[#Choices + 1] = Side end
+	end
+	return UI.Pick(Title, Choices)
+end
+
+local function SearchAction()
+	local Entry = Storage.SearchDrive
+	if (Entry and Entry.State == "foreign") then
+		if (UI.Confirm("cc.net disk", "Erase every file on the floppy in the " .. Entry.Name .. " drive and use it for cc.net?", "Wipe", true)) then
+			Storage.Wipe(Entry.Mount)
+			Log.Event("Wiped the floppy in " .. Entry.Name .. " for cc.net")
+			Storage.Scan()
+		end
+		return
+	end
+	local Side = PickSide("cc.net drive side", Storage.TransferSide)
+	if (Side) then
+		Config.Set("SearchSide", Side)
+		Storage.SearchSide = Side
+		Storage.Scan()
+	end
+end
+
 local function SettingsView(W, H)
 	UI.Fill(1, 3, W, H - 3, "f")
 	local Rows = {
@@ -476,13 +522,14 @@ local function SettingsView(W, H)
 			Config.Set("PublicDirectory", not Config.Values.PublicDirectory)
 		end },
 		{ "Transfer drive", Config.Values.TransferSide, "Change", function()
-			local Side = UI.Pick("Transfer drive side", { "left", "right", "top", "bottom", "front", "back" })
+			local Side = PickSide("Transfer drive side", Storage.SearchSide)
 			if (Side) then
 				Config.Set("TransferSide", Side)
 				Storage.TransferSide = Side
 				Storage.Scan()
 			end
 		end },
+		{ "cc.net drive", SearchStatus(), (Storage.SearchDrive and Storage.SearchDrive.State == "foreign") and "Wipe" or "Change", SearchAction },
 		{ "Network", Network.Hosted and (Network.Modems .. " modem(s), hosted") or (Network.Problem or "offline"), "Reconnect", function()
 			Network.Start(Config.Values.Hostname)
 		end }
@@ -565,9 +612,10 @@ function Admin.Onboard()
 	Storage.Scan()
 	local Counts = Storage.Counts()
 	local Transferring = Storage.IsDrive(Storage.TransferSide) and "found" or "missing (place a disk drive on the left)"
+	local Searching = Storage.SearchReady() and "ready" or "none (optional: a drive with a floppy on the right)"
 	local Modems = Protocol.OpenModems()
 	Backdrop("Ready")
-	UI.Alert("All set", "Server name: " .. Name .. "\nDisk drives: " .. Counts.Drives .. " (" .. Counts.Blank .. " blank floppies)\nTransfer drive: " .. Transferring .. "\nModems: " .. Modems .. (Modems == 0 and " (attach a wireless or ender modem)" or ""))
+	UI.Alert("All set", "Server name: " .. Name .. "\nDisk drives: " .. Counts.Drives .. " (" .. Counts.Blank .. " blank floppies)\nTransfer drive: " .. Transferring .. "\ncc.net drive: " .. Searching .. "\nModems: " .. Modems .. (Modems == 0 and " (attach a wireless or ender modem)" or ""))
 	Log.Event("Set up as " .. Name)
 	State.LastInput = os.clock()
 end

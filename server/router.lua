@@ -5,6 +5,7 @@ local Storage = require("server.storage")
 local Config = require("server.config")
 local Pages = require("server.pages")
 local Domains = require("server.domains")
+local Search = require("server.search")
 
 local Router = {}
 
@@ -80,6 +81,8 @@ function Router.Handle(Request, Sender)
 		Response = Pages.Error(400, "Bad request", "That address could not be read.")
 	elseif (Url.Scheme == "domain") then
 		Response = Domains.Handle(Method, Url, Request.Body, Sender)
+	elseif (Url.Scheme == "ccmd" and Url.Host == Search.Host) then
+		Response = Search.Handle(Method, Url)
 	elseif (Url.Scheme == "ccmd") then
 		Response = Router.Site(Method, Url, Request.Body, Sender)
 	else
